@@ -1,0 +1,61 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  pull-chat-model:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${OLLAMA_CHAT_MODEL:-qwen2.5:7b}"]
+
+  pull-embedding-model:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${OLLAMA_EMBED_MODEL:-nomic-embed-text}"]
+
+  patchmind:
+    build: .
+    depends_on:
+      pull-chat-model:
+        condition: service_completed_successfully
+      pull-embedding-model:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    environment:
+      PATCHMIND_MEMORY_MODE: local
+      PATCHMIND_TRANSPORT: streamable-http
+      PATCHMIND_COGNEE_DATA_DIR: /data/cognee/data
+      PATCHMIND_COGNEE_SYSTEM_DIR: /data/cognee/system
+      COGNEE_SKIP_CONNECTION_TEST: "true"
+      LLM_PROVIDER: ollama
+      LLM_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:7b}
+      LLM_ENDPOINT: http://ollama:11434/v1
+      LLM_API_KEY: ollama
+      LLM_MAX_COMPLETION_TOKENS: "4096"
+      EMBEDDING_PROVIDER: openai_compatible
+      EMBEDDING_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      EMBEDDING_ENDPOINT: http://ollama:11434/v1
+      EMBEDDING_API_KEY: ollama
+      EMBEDDING_DIMENSIONS: 768
+    volumes:
+      - patchmind-data:/data
+      - ./.demo:/repositories
+
+volumes:
+  ollama-data:
+  patchmind-data:
