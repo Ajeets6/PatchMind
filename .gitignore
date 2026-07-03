@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+.venv/
+.uv-cache/
+.tmp/
+.local-test-tmp/
+.elevated-local-test*/
+.final-test-tmp/
+.demo/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.patchmind/
+*.pyc
