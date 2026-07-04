@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     patchmind_memory_mode: Literal["local", "cloud"] = "local"
+    patchmind_preflight: bool = True
+    patchmind_preflight_timeout_seconds: float = 10.0
     cognee_service_url: str | None = None
     cognee_api_key: str | None = None
     patchmind_cognee_data_dir: Path = Path(".patchmind/cognee/data")
@@ -16,7 +18,7 @@ class Settings(BaseSettings):
 
     # Cognee consumes these standard OpenAI-compatible provider settings.
     llm_provider: str = "ollama"
-    llm_model: str = "qwen2.5:7b"
+    llm_model: str = "qwen2.5-coder:7b"
     llm_endpoint: str = "http://localhost:11434/v1"
     llm_api_key: str = "ollama"
     llm_max_completion_tokens: int = 4096

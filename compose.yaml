@@ -16,7 +16,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
-    command: ["pull", "${OLLAMA_CHAT_MODEL:-qwen2.5:7b}"]
+    command: ["pull", "${OLLAMA_CHAT_MODEL:-qwen2.5-coder:7b}"]
 
   pull-embedding-model:
     image: ollama/ollama:latest
@@ -43,7 +43,7 @@ services:
       PATCHMIND_COGNEE_SYSTEM_DIR: /data/cognee/system
       COGNEE_SKIP_CONNECTION_TEST: "true"
       LLM_PROVIDER: ollama
-      LLM_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:7b}
+      LLM_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5-coder:7b}
       LLM_ENDPOINT: http://ollama:11434/v1
       LLM_API_KEY: ollama
       LLM_MAX_COMPLETION_TOKENS: "4096"
