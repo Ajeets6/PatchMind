@@ -9,6 +9,9 @@ class InMemoryMemoryStore:
         self.datasets: dict[str, list[str]] = defaultdict(list)
         self.sessions: dict[tuple[str, str], list[str]] = defaultdict(list)
 
+    async def preflight(self):
+        return {"status": "ready", "memory_mode": "in_memory"}
+
     async def remember(self, records, dataset, *, session_id=None, custom_prompt=None):
         target = self.sessions[(dataset, session_id)] if session_id else self.datasets[dataset]
         target.extend(record for record in records if record not in target)

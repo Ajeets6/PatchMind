@@ -1,3 +1,4 @@
+import asyncio
 from functools import lru_cache
 
 import structlog
@@ -5,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from patchmind.config import get_settings
 from patchmind.memory.cognee_store import CogneeMemoryStore
+from patchmind.memory.preflight import PreflightError
 from patchmind.service import PatchMindService
 
 INSTRUCTIONS = (
@@ -78,7 +80,11 @@ async def patchmind_finalize_session(
 
 def main() -> None:
     structlog.configure(processors=[structlog.processors.JSONRenderer()])
-    get_service()  # Fail fast on memory/provider configuration before accepting MCP calls.
+    try:
+        service = get_service()
+        asyncio.run(service.memory.preflight())
+    except (PreflightError, ValueError) as error:
+        raise SystemExit(f"PatchMind startup check failed: {error}") from None
     mcp.run(transport=settings.patchmind_transport)
 
 

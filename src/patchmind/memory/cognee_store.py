@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from patchmind.config import Settings
+from patchmind.memory.preflight import PreflightChecker
 
 log = structlog.get_logger()
 
@@ -58,6 +59,11 @@ class CogneeMemoryStore:
 
         self.client = cognee
         self._connected = False
+
+    async def preflight(self) -> dict[str, Any]:
+        result = await PreflightChecker(self.settings).run()
+        log.info("memory_preflight", **result)
+        return result
 
     def _configure_local(self) -> None:
         data_dir = Path(self.settings.patchmind_cognee_data_dir).resolve()

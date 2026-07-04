@@ -2,6 +2,8 @@ from typing import Protocol
 
 
 class MemoryStore(Protocol):
+    async def preflight(self) -> dict: ...
+
     async def remember(
         self,
         records: list[str],
