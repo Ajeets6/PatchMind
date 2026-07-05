@@ -11,7 +11,11 @@ class GitError(ValueError):
 
 def git(root: Path, *args: str, check: bool = True) -> str:
     result = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, text=True, encoding="utf-8",
+        ["git", "-C", str(root), *args],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
         errors="replace", check=False,
     )
     if check and result.returncode:

@@ -42,7 +42,16 @@ def seed(target: Path) -> None:
     write(target / "src/session_store.py", "from threading import Lock\n\nclass SessionStore:\n    _lock = Lock()\n    def save(self, value):\n        with self._lock:\n            self.value = value\n")
     commit(target, "Introduce process-level SessionStore lock")
 
-    write(target / "tests/test_concurrent_sessions.py", "def test_concurrent_sessions():\n    # Regression coverage for shared locking.\n    assert True\n")
+    write(
+        target / "tests/test_concurrent_sessions.py",
+        "import unittest\n\n"
+        "class ConcurrentSessionTests(unittest.TestCase):\n"
+        "    def test_concurrent_sessions(self):\n"
+        "        # Regression coverage for shared locking.\n"
+        "        self.assertTrue(True)\n\n"
+        "if __name__ == '__main__':\n"
+        "    unittest.main()\n",
+    )
     commit(target, "Add concurrent session regression test")
     print(target.resolve())
 

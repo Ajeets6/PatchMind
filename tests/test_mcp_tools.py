@@ -15,9 +15,25 @@ async def test_index_and_retrieve_repository_context(service, demo_repository):
     assert result["status"] == "ready"
     assert result["files_indexed"] == 4
     assert result["commits_indexed"] == 1
+    assert result["ingestion"] == "scheduled"
     context = await service.get_context(str(demo_repository), "Why use process-level lock?")
     assert context["status"] == "found"
     assert any("Per-request locks failed" in item for item in context["context"])
+
+
+async def test_unindexed_repository_returns_without_querying_memory(demo_repository):
+    class FailingRecallStore(InMemoryMemoryStore):
+        async def recall(self, query, dataset, *, top_k=10):
+            raise AssertionError("Unindexed repository should not query memory")
+
+    service = PatchMindService(FailingRecallStore(), Settings())
+
+    context = await service.get_context(str(demo_repository), "Explain locking")
+    attempts = await service.find_previous_attempts(str(demo_repository), "locking")
+
+    assert context["status"] == "not_found"
+    assert context["index_status"] == "not_indexed"
+    assert all(not records for records in attempts.values())
 
 
 async def test_index_deduplicates_unchanged_records(service, demo_repository):

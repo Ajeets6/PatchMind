@@ -14,6 +14,10 @@ class IndexState:
     def unseen(self, key: str) -> bool:
         return key not in self.keys
 
+    @property
+    def has_memory(self) -> bool:
+        return bool(self.keys)
+
     def add(self, key: str) -> None:
         self.keys.add(key)
 

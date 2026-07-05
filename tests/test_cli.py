@@ -85,3 +85,42 @@ def test_install_codex_instructions_preserves_existing_content(monkeypatch, tmp_
     assert first.startswith("# Existing instructions")
     assert "Updated version." in second
     assert second.count(cli.PATCHMIND_INSTRUCTIONS_START) == 1
+
+
+def test_remove_codex_artifacts_preserves_unrelated_instructions(monkeypatch, tmp_path):
+    codex_home = tmp_path / "codex-home"
+    skill = codex_home / "skills" / "patchmind-memory"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("installed", encoding="utf-8")
+    instructions = codex_home / "AGENTS.md"
+    instructions.write_text(
+        "# Existing\n\n"
+        f"{cli.PATCHMIND_INSTRUCTIONS_START}\nPatchMind\n"
+        f"{cli.PATCHMIND_INSTRUCTIONS_END}\n\n# Remaining\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    cli._remove_codex_skill()
+    cli._remove_codex_instructions()
+
+    assert not skill.exists()
+    assert instructions.read_text(encoding="utf-8") == "# Existing\n\n# Remaining\n"
+
+
+def test_uninstall_codex_removes_registered_mcp(monkeypatch, tmp_path):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
+    monkeypatch.setattr(cli.shutil, "which", lambda command: "codex.exe")
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(cli.subprocess, "run", run)
+
+    assert cli.run_uninstall_codex() == 0
+    assert calls == [
+        ["codex", "mcp", "get", "patchmind"],
+        ["codex", "mcp", "remove", "patchmind"],
+    ]

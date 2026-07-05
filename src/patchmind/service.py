@@ -33,7 +33,10 @@ class PatchMindService:
                 pending.append((key, format_commit(repo.name, commit)))
         if pending:
             await self.memory.remember(
-                [record for _, record in pending], repo.dataset, custom_prompt=EXTRACTION_PROMPT
+                [record for _, record in pending],
+                repo.dataset,
+                custom_prompt=EXTRACTION_PROMPT,
+                background=True,
             )
             for key, _ in pending:
                 state.add(key)
@@ -45,11 +48,21 @@ class PatchMindService:
             "test_files_indexed": sum(file.is_test for file in files),
             "commits_indexed": len(commits),
             "records_uploaded": len(pending),
+            "ingestion": "scheduled" if pending else "unchanged",
             "status": "ready",
         }
 
     async def get_context(self, repository_path, task, file_paths=None, symbol=None, top_k=10):
         repo = scan_repository(repository_path)
+        if not IndexState(repo.root).has_memory:
+            return {
+                "repository_id": repo.repository_id,
+                "task": task,
+                "context": [],
+                "evidence_count": 0,
+                "index_status": "not_indexed",
+                "status": "not_found",
+            }
         qualifiers = [task]
         if file_paths:
             qualifiers.append("Files: " + ", ".join(file_paths))
@@ -63,16 +76,19 @@ class PatchMindService:
             "task": task,
             "context": records,
             "evidence_count": len(records),
+            "index_status": "indexed",
             "status": "found" if records else "not_found",
         }
 
     async def find_previous_attempts(self, repository_path, problem, file_path=None):
         repo = scan_repository(repository_path)
+        grouped = {name: [] for name in ("failed", "rejected", "reverted", "successful", "unknown")}
+        if not IndexState(repo.root).has_memory:
+            return grouped
         query = f"Previous attempts for: {problem}"
         if file_path:
             query += f"\nFile: {file_path}"
         records = await self.memory.recall(query, repo.dataset, top_k=30)
-        grouped = {name: [] for name in ("failed", "rejected", "reverted", "successful", "unknown")}
         for record in records:
             match = re.search(
                 r"(?:Outcome|Status):\s*(successful|failed|rejected|reverted|inconclusive)",
@@ -172,14 +188,17 @@ Summary: {summary}
 Status: validated and finalized
 """
         await self.memory.remember([summary_record], repo.dataset, session_id=session_id)
-        await self.memory.improve(repo.dataset, [session_id])
+        await self.memory.improve(repo.dataset, [session_id], background=True)
+        state = IndexState(repo.root)
+        state.add(f"session:{session_id}")
+        state.save()
         return {
             "repository_id": repo.repository_id,
             "dataset": repo.dataset,
             "session_id": session_id,
-            "status": "finalized",
+            "status": "finalization_scheduled",
             "memory_mode": self.settings.patchmind_memory_mode,
-            "promotion_strategy": "cognee_improve",
+            "promotion_strategy": "cognee_improve_background",
         }
 
     async def forget_repository(self, repository_path):

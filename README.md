@@ -12,6 +12,16 @@ Codex / MCP Inspector -> PatchMind -> Git repository
 Local Cognee with Ollama is the default. Validated session outcomes are promoted with
 `improve(session_ids=...)`, allowing them to survive a Codex restart.
 
+Recall uses Cognee's semantic chunk retrieval by default so MCP calls return without an additional
+LLM routing and answer-generation cycle. Set `PATCHMIND_RECALL_MODE=graph` when a slower synthesized
+graph answer is preferable to raw evidence.
+
+Repository indexing schedules Cognee ingestion in the MCP server's background and returns after the
+records are accepted. Agents continue the current task using files, tests, and Git rather than
+waiting for first-time graph extraction. Newly indexed memory becomes available to later tasks.
+Session finalization likewise schedules Cognee promotion in the background so bookkeeping does not
+delay the coding result.
+
 ## Quick start
 
 Requirements: Python 3.12+, `uv`, Git, Ollama, and Codex CLI.
@@ -47,6 +57,17 @@ It never overwrites an existing `.env`, Codex MCP entry, or unrelated global age
 updates only the installed PatchMind skill and its marked instruction block. Starting `serve` alone
 does not modify Codex configuration; run `setup --install-codex` once. Use `--no-pull` when models
 are managed separately.
+
+To remove the Codex integration:
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+uv run --frozen python -m patchmind uninstall-codex
+```
+
+This removes the MCP registration, installed skill, and PatchMind's managed global instruction
+block. It preserves repository memory, `.env`, Ollama models, and unrelated Codex instructions.
+Restart Codex afterward to terminate any active stdio MCP process.
 
 ## Use it
 

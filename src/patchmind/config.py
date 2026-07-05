@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     cognee_api_key: str | None = None
     patchmind_cognee_data_dir: Path = Path(".patchmind/cognee/data")
     patchmind_cognee_system_dir: Path = Path(".patchmind/cognee/system")
+    patchmind_recall_mode: Literal["chunks", "graph"] = "chunks"
 
     # Cognee consumes these standard OpenAI-compatible provider settings.
     llm_provider: str = "ollama"

@@ -115,6 +115,59 @@ def _install_codex_instructions(root: Path) -> Path:
     return target
 
 
+def _remove_codex_skill() -> None:
+    target = _codex_home() / "skills" / "patchmind-memory"
+    if target.is_dir():
+        shutil.rmtree(target)
+        print(f"Removed PatchMind Codex skill: {target}")
+    else:
+        print(f"PatchMind Codex skill is not installed: {target}")
+
+
+def _remove_codex_instructions() -> None:
+    target = _codex_home() / "AGENTS.md"
+    if not target.exists():
+        print(f"Global Codex instructions do not exist: {target}")
+        return
+    existing = target.read_text(encoding="utf-8")
+    start = existing.find(PATCHMIND_INSTRUCTIONS_START)
+    end = existing.find(PATCHMIND_INSTRUCTIONS_END)
+    if start == -1 and end == -1:
+        print(f"PatchMind instruction block is not installed: {target}")
+        return
+    if start == -1 or end == -1 or end < start:
+        raise SetupError(f"Malformed PatchMind instruction block in {target}")
+    end += len(PATCHMIND_INSTRUCTIONS_END)
+    before = existing[:start].rstrip()
+    after = existing[end:].strip()
+    updated = "\n\n".join(part for part in (before, after) if part)
+    if updated:
+        target.write_text(updated + "\n", encoding="utf-8")
+    else:
+        target.unlink()
+    print(f"Removed PatchMind Codex instructions: {target}")
+
+
+def run_uninstall_codex() -> int:
+    if not shutil.which("codex"):
+        raise SetupError("Codex CLI is not installed or is not on PATH.")
+    existing = subprocess.run(
+        ["codex", "mcp", "get", "patchmind"], capture_output=True, check=False
+    )
+    if existing.returncode == 0:
+        result = subprocess.run(["codex", "mcp", "remove", "patchmind"], check=False)
+        if result.returncode:
+            raise SetupError("Could not remove PatchMind from Codex MCP configuration.")
+        print("Removed PatchMind from Codex MCP configuration.")
+    else:
+        print("PatchMind MCP entry is not installed.")
+    _remove_codex_skill()
+    _remove_codex_instructions()
+    print("PatchMind Codex integration removed. Restart Codex to stop the active MCP process.")
+    print("Repository memory and local models were preserved.")
+    return 0
+
+
 def run_setup(args: argparse.Namespace) -> int:
     env_path = PROJECT_ROOT / ".env"
     example_path = PROJECT_ROOT / ".env.example"
@@ -170,6 +223,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="add the MCP server, skill, and automatic instructions to Codex",
     )
     commands.add_parser("serve", help="run the PatchMind MCP server")
+    commands.add_parser(
+        "uninstall-codex",
+        help="remove the MCP entry, skill, and managed instructions from Codex",
+    )
     return parser
 
 
@@ -178,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "setup":
             return run_setup(args)
+        if args.command == "uninstall-codex":
+            return run_uninstall_codex()
         from patchmind.server import main as serve
 
         serve()

@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 from patchmind.config import get_settings
 from patchmind.memory.cognee_store import CogneeMemoryStore
 from patchmind.memory.preflight import PreflightError
+from patchmind.models import Outcome
 from patchmind.service import PatchMindService
 
 INSTRUCTIONS = (
@@ -59,7 +60,7 @@ async def patchmind_record_outcome(
     session_id: str,
     task: str,
     approach: str,
-    outcome: str,
+    outcome: Outcome,
     evidence: str,
     affected_files: list[str],
     tests: list[str] | None = None,
@@ -67,7 +68,7 @@ async def patchmind_record_outcome(
     dependency_versions: dict[str, str] | None = None,
     summary: str | None = None,
 ) -> dict:
-    """Record a coding attempt and its observed outcome in session memory."""
+    """Record an attempt using successful, failed, rejected, reverted, or inconclusive."""
     return await get_service().record_outcome(
         repository_path, session_id, task, approach, outcome, evidence, affected_files, tests,
         failure_reason, dependency_versions, summary,

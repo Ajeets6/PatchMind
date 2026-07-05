@@ -100,7 +100,9 @@ class CogneeMemoryStore:
             )
         self._connected = True
 
-    async def remember(self, records, dataset, *, session_id=None, custom_prompt=None):
+    async def remember(
+        self, records, dataset, *, session_id=None, custom_prompt=None, background=False
+    ):
         await self._connect()
         kwargs: dict[str, Any] = {"dataset_name": dataset}
         if session_id:
@@ -108,18 +110,31 @@ class CogneeMemoryStore:
             kwargs["self_improvement"] = False
         if custom_prompt:
             kwargs["custom_prompt"] = custom_prompt
+        if background:
+            kwargs["run_in_background"] = True
         await _await(self.client.remember(records, **kwargs))
 
     async def recall(self, query, dataset, *, top_k=10):
         await self._connect()
-        result = await _await(
-            self.client.recall(query, datasets=[dataset], top_k=top_k)
-        )
+        kwargs: dict[str, Any] = {"datasets": [dataset], "top_k": top_k}
+        if self.settings.patchmind_recall_mode == "chunks":
+            kwargs.update(
+                query_type=self.client.SearchType.CHUNKS,
+                auto_route=False,
+                only_context=True,
+            )
+        result = await _await(self.client.recall(query, **kwargs))
         return _strings(result)
 
-    async def improve(self, dataset, session_ids):
+    async def improve(self, dataset, session_ids, *, background=False):
         await self._connect()
-        await _await(self.client.improve(dataset=dataset, session_ids=session_ids))
+        await _await(
+            self.client.improve(
+                dataset=dataset,
+                session_ids=session_ids,
+                run_in_background=background,
+            )
+        )
 
     async def forget(self, dataset):
         await self._connect()

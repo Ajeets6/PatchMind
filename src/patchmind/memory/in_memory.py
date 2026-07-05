@@ -12,7 +12,9 @@ class InMemoryMemoryStore:
     async def preflight(self):
         return {"status": "ready", "memory_mode": "in_memory"}
 
-    async def remember(self, records, dataset, *, session_id=None, custom_prompt=None):
+    async def remember(
+        self, records, dataset, *, session_id=None, custom_prompt=None, background=False
+    ):
         target = self.sessions[(dataset, session_id)] if session_id else self.datasets[dataset]
         target.extend(record for record in records if record not in target)
 
@@ -26,7 +28,7 @@ class InMemoryMemoryStore:
         ranked = sorted(self.datasets[dataset], key=score, reverse=True)
         return [item for item in ranked if score(item) > 0][:top_k]
 
-    async def improve(self, dataset, session_ids):
+    async def improve(self, dataset, session_ids, *, background=False):
         for session_id in session_ids:
             await self.remember(self.sessions.pop((dataset, session_id), []), dataset)
 
