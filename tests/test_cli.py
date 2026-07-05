@@ -43,3 +43,45 @@ def test_default_model_is_coder_model():
     from patchmind.config import Settings
 
     assert Settings(_env_file=None).llm_model == "qwen2.5-coder:7b"
+
+
+def test_install_codex_skill_uses_codex_home(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    source = project / "agent-skills" / "patchmind-memory"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text("---\nname: patchmind-memory\n---\n", encoding="utf-8")
+    codex_home = tmp_path / "codex-home"
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    target = cli._install_codex_skill(project)
+
+    assert target == codex_home / "skills" / "patchmind-memory"
+    assert (target / "SKILL.md").read_text(encoding="utf-8").startswith("---")
+
+
+def test_install_codex_instructions_preserves_existing_content(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    block = (
+        f"{cli.PATCHMIND_INSTRUCTIONS_START}\n"
+        "## PatchMind instructions\nFirst version.\n"
+        f"{cli.PATCHMIND_INSTRUCTIONS_END}\n"
+    )
+    (project / "AGENTS.md").write_text(block, encoding="utf-8")
+    codex_home = tmp_path / "codex-home"
+    codex_home.mkdir()
+    target = codex_home / "AGENTS.md"
+    target.write_text("# Existing instructions\n", encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+    cli._install_codex_instructions(project)
+    first = target.read_text(encoding="utf-8")
+    (project / "AGENTS.md").write_text(
+        block.replace("First version.", "Updated version."), encoding="utf-8"
+    )
+    cli._install_codex_instructions(project)
+    second = target.read_text(encoding="utf-8")
+
+    assert first.startswith("# Existing instructions")
+    assert "Updated version." in second
+    assert second.count(cli.PATCHMIND_INSTRUCTIONS_START) == 1

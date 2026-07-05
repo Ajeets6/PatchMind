@@ -1,0 +1,11 @@
+interface:
+  display_name: "PatchMind Memory"
+  short_description: "Use persistent memory during coding tasks"
+  default_prompt: "Use $patchmind-memory to retrieve repository history, complete the coding task, and record its tested outcome."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "patchmind"
+      description: "Persistent repository memory and patch outcome tools"
+policy:
+  allow_implicit_invocation: true

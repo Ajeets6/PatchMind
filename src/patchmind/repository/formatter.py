@@ -34,20 +34,51 @@ Commit modifies the listed files. Tests in the changed files protect related beh
 """
 
 
-def format_attempt(repository, task, approach, outcome, evidence, affected_files, tests):
+def format_attempt(
+    repository,
+    task,
+    approach,
+    outcome,
+    evidence,
+    affected_files,
+    tests,
+    *,
+    branch=None,
+    commit=None,
+    recorded_at=None,
+    file_hashes=None,
+    failure_reason=None,
+    dependency_versions=None,
+    summary=None,
+):
     files = "\n".join(f"- {item}" for item in affected_files) or "- none supplied"
     test_lines = "\n".join(f"- {item}" for item in (tests or [])) or "- none supplied"
+    hashes = "\n".join(
+        f"- {path}: {content_hash}" for path, content_hash in (file_hashes or {}).items()
+    ) or "- none supplied"
+    dependencies = "\n".join(
+        f"- {name}: {version}" for name, version in (dependency_versions or {}).items()
+    ) or "- none supplied"
     return f"""PATCH ATTEMPT
 
 Repository: {repository}
+Branch: {branch or 'unknown'}
+Commit: {commit or 'unknown'}
+Recorded at: {recorded_at or 'unknown'}
 Task: {task}
 Approach: {approach}
 Outcome: {outcome}
 Evidence: {evidence}
+Failure reason: {failure_reason or 'none supplied'}
+Summary: {summary or 'none supplied'}
 Affected files:
 {files}
+Affected file hashes:
+{hashes}
 Tests:
 {test_lines}
+Dependency versions:
+{dependencies}
 
 This attempt must be recalled when modifying related code.
 """

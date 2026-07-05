@@ -58,3 +58,52 @@ async def test_invalid_outcome_is_rejected(service, demo_repository):
         await service.record_outcome(
             str(demo_repository), "s", "task", "approach", "maybe", "none", []
         )
+
+
+async def test_outcome_records_repository_state_and_engineering_metadata(
+    service, demo_repository
+):
+    await service.record_outcome(
+        str(demo_repository),
+        "metadata-session",
+        "Fix validation",
+        "Use the v2 validator API",
+        "successful",
+        "Focused validation tests passed",
+        ["src/session_store.py"],
+        ["tests/test_validation.py"],
+        dependency_versions={"pydantic": "2.13.4"},
+        summary="Updated validation for Pydantic v2",
+    )
+    await service.finalize_session(str(demo_repository), "metadata-session", "done")
+
+    result = await service.get_context(str(demo_repository), "Pydantic validation")
+    record = next(item for item in result["context"] if item.startswith("PATCH ATTEMPT"))
+
+    assert "Branch: " in record
+    assert "Commit: " in record
+    assert "Recorded at: " in record
+    assert "- pydantic: 2.13.4" in record
+    assert "Freshness: active" in record
+
+
+async def test_retrieval_warns_when_an_affected_file_changed(service, demo_repository):
+    await service.record_outcome(
+        str(demo_repository),
+        "stale-session",
+        "Fix session corruption",
+        "Use the current lock implementation",
+        "successful",
+        "Concurrency tests passed",
+        ["src/session_store.py"],
+    )
+    await service.finalize_session(str(demo_repository), "stale-session", "done")
+    (demo_repository / "src" / "session_store.py").write_text(
+        "class SessionStore:\n    pass\n", encoding="utf-8"
+    )
+
+    result = await service.get_context(str(demo_repository), "session corruption lock")
+    record = next(item for item in result["context"] if item.startswith("PATCH ATTEMPT"))
+
+    assert "Freshness: potentially_stale" in record
+    assert "changed or missing files: src/session_store.py" in record

@@ -48,3 +48,21 @@ def read_source_files(root: Path, max_bytes: int) -> list[SourceFile]:
             is_test=is_test_file(relative),
         ))
     return files
+
+
+def hash_repository_files(root: Path, paths: list[str]) -> dict[str, str]:
+    """Hash repository-relative files without allowing paths to escape the repository."""
+    hashes: dict[str, str] = {}
+    canonical_root = root.resolve()
+    for value in dict.fromkeys(paths):
+        candidate = (canonical_root / value).resolve()
+        try:
+            relative = candidate.relative_to(canonical_root).as_posix()
+        except ValueError:
+            hashes[value] = "outside_repository"
+            continue
+        try:
+            hashes[relative] = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        except OSError:
+            hashes[relative] = "missing"
+    return hashes

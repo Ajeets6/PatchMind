@@ -9,3 +9,5 @@ def test_attempt_format_preserves_engineering_evidence():
     assert "Outcome: failed" in record
     assert "one lock per request" in record
     assert "test_concurrent_sessions" in record
+    assert "Affected file hashes:" in record
+    assert "Dependency versions:" in record

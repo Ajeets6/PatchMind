@@ -1,12 +1,14 @@
 import re
+from datetime import UTC, datetime
+
 from patchmind.config import Settings
 from patchmind.memory.base import MemoryStore
 from patchmind.models import Outcome
 from patchmind.prompts import EXTRACTION_PROMPT
 from patchmind.repository.formatter import format_attempt, format_commit, format_file
-from patchmind.repository.git_history import read_recent_commits
+from patchmind.repository.git_history import current_commit, read_recent_commits
 from patchmind.repository.index_state import IndexState
-from patchmind.repository.scanner import read_source_files, scan_repository
+from patchmind.repository.scanner import hash_repository_files, read_source_files, scan_repository
 
 
 class PatchMindService:
@@ -55,6 +57,7 @@ class PatchMindService:
             qualifiers.append("Symbol: " + symbol)
         query = "\n".join(qualifiers)
         records = await self.memory.recall(query, repo.dataset, top_k=max(1, min(top_k, 50)))
+        records = [self._with_freshness(record, repo) for record in records]
         return {
             "repository_id": repo.repository_id,
             "task": task,
@@ -79,17 +82,30 @@ class PatchMindService:
             category = match.group(1).lower() if match else "unknown"
             if category == "inconclusive":
                 category = "unknown"
-            grouped[category].append(record)
+            grouped[category].append(self._with_freshness(record, repo))
         return grouped
 
     async def record_outcome(
         self, repository_path, session_id, task, approach, outcome, evidence,
-        affected_files, tests=None,
+        affected_files, tests=None, failure_reason=None, dependency_versions=None, summary=None,
     ):
         repo = scan_repository(repository_path)
         normalized = Outcome(outcome).value
         record = format_attempt(
-            repo.name, task, approach, normalized, evidence, affected_files, tests
+            repo.name,
+            task,
+            approach,
+            normalized,
+            evidence,
+            affected_files,
+            tests,
+            branch=repo.branch,
+            commit=current_commit(repo.root),
+            recorded_at=datetime.now(UTC).isoformat(),
+            file_hashes=hash_repository_files(repo.root, affected_files),
+            failure_reason=failure_reason,
+            dependency_versions=dependency_versions,
+            summary=summary,
         )
         await self.memory.remember([record], repo.dataset, session_id=session_id)
         return {
@@ -99,6 +115,52 @@ class PatchMindService:
             "outcome": normalized,
             "status": "recorded",
         }
+
+    @staticmethod
+    def _with_freshness(record: str, repo) -> str:
+        if not record.startswith("PATCH ATTEMPT"):
+            return record
+        section = re.search(
+            r"Affected file hashes:\n(?P<hashes>.*?)(?:\nTests:)", record, re.DOTALL
+        )
+        if not section:
+            return record + "\nFreshness: unknown (legacy memory has no file hashes)\n"
+        recorded: dict[str, str] = {}
+        for line in section.group("hashes").splitlines():
+            match = re.match(r"- (.+): ([a-f0-9]{64}|missing|outside_repository)$", line)
+            if match:
+                recorded[match.group(1)] = match.group(2)
+        if not recorded:
+            return record + "\nFreshness: unknown (no affected file hashes supplied)\n"
+        current = hash_repository_files(repo.root, list(recorded))
+        changed = [path for path, old_hash in recorded.items() if current.get(path) != old_hash]
+        recorded_branch = re.search(r"^Branch: (.+)$", record, re.MULTILINE)
+        details = [f"recorded commit {PatchMindService._field(record, 'Commit')}"]
+        try:
+            details.append(f"current commit {current_commit(repo.root)}")
+        except ValueError:
+            pass
+        branch_changed = bool(recorded_branch and recorded_branch.group(1) != repo.branch)
+        if branch_changed:
+            details.append(f"branch changed to {repo.branch}")
+        if changed or branch_changed:
+            reasons = []
+            if changed:
+                reasons.append("changed or missing files: " + ", ".join(changed))
+            return record + ("\nFreshness: potentially_stale (" + "; ".join(
+                details + reasons
+            ) + ")\n")
+        return (
+            record
+            + "\nFreshness: active (affected files are unchanged; "
+            + "; ".join(details)
+            + ")\n"
+        )
+
+    @staticmethod
+    def _field(record: str, name: str) -> str:
+        match = re.search(rf"^{re.escape(name)}: (.+)$", record, re.MULTILINE)
+        return match.group(1) if match else "unknown"
 
     async def finalize_session(self, repository_path, session_id, summary):
         repo = scan_repository(repository_path)

@@ -30,6 +30,10 @@ def current_branch(root: Path) -> str:
     return git(root, "branch", "--show-current").strip() or "detached"
 
 
+def current_commit(root: Path) -> str:
+    return git(root, "rev-parse", "HEAD").strip()
+
+
 def read_recent_commits(root: Path, limit: int, max_diff_chars: int = 4_000) -> list[Commit]:
     if limit <= 0:
         return []

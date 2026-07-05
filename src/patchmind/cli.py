@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 import shutil
 import subprocess
 import sys
@@ -10,6 +11,8 @@ from patchmind.memory.preflight import PreflightChecker, PreflightError
 from patchmind.repository.scanner import scan_repository
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PATCHMIND_INSTRUCTIONS_START = "<!-- patchmind:start -->"
+PATCHMIND_INSTRUCTIONS_END = "<!-- patchmind:end -->"
 
 
 class SetupError(RuntimeError):
@@ -59,11 +62,57 @@ def _install_codex(root: Path) -> None:
     )
     if existing.returncode == 0:
         print("Codex MCP entry 'patchmind' already exists; leaving it unchanged.")
-        return
-    result = subprocess.run(_codex_command(root), check=False)
-    if result.returncode:
-        raise SetupError("Could not add PatchMind to Codex MCP configuration.")
-    print("Added PatchMind to Codex MCP configuration.")
+    else:
+        result = subprocess.run(_codex_command(root), check=False)
+        if result.returncode:
+            raise SetupError("Could not add PatchMind to Codex MCP configuration.")
+        print("Added PatchMind to Codex MCP configuration.")
+    _install_codex_skill(root)
+    _install_codex_instructions(root)
+
+
+def _codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+
+
+def _install_codex_skill(root: Path) -> Path:
+    source = root / "agent-skills" / "patchmind-memory"
+    if not (source / "SKILL.md").is_file():
+        raise SetupError(f"PatchMind Codex skill not found: {source}")
+    target = _codex_home() / "skills" / "patchmind-memory"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target, dirs_exist_ok=True)
+    print(f"Installed PatchMind Codex skill: {target}")
+    return target
+
+
+def _install_codex_instructions(root: Path) -> Path:
+    source = root / "AGENTS.md"
+    if not source.is_file():
+        raise SetupError(f"PatchMind Codex instructions not found: {source}")
+    block = source.read_text(encoding="utf-8").strip()
+    if not (
+        block.startswith(PATCHMIND_INSTRUCTIONS_START)
+        and block.endswith(PATCHMIND_INSTRUCTIONS_END)
+    ):
+        raise SetupError("PatchMind AGENTS.md is missing its managed block markers.")
+
+    target = _codex_home() / "AGENTS.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    existing = target.read_text(encoding="utf-8") if target.exists() else ""
+    start = existing.find(PATCHMIND_INSTRUCTIONS_START)
+    end = existing.find(PATCHMIND_INSTRUCTIONS_END)
+    if (start == -1) != (end == -1) or (start != -1 and end < start):
+        raise SetupError(f"Malformed PatchMind instruction block in {target}")
+    if start == -1:
+        updated = existing.rstrip()
+        updated = f"{updated}\n\n{block}\n" if updated else f"{block}\n"
+    else:
+        end += len(PATCHMIND_INSTRUCTIONS_END)
+        updated = existing[:start] + block + existing[end:]
+    target.write_text(updated, encoding="utf-8")
+    print(f"Installed PatchMind Codex instructions: {target}")
+    return target
 
 
 def run_setup(args: argparse.Namespace) -> int:
@@ -103,7 +152,7 @@ def run_setup(args: argparse.Namespace) -> int:
 
     print("PatchMind setup complete.")
     if repository:
-        print(f"Next: ask Codex to index {repository.root}")
+        print(f"Next: restart Codex and begin a coding task in {repository.root}")
     elif not args.install_codex:
         print("Next: rerun with --install-codex and optionally --repository <path>.")
     return 0
@@ -115,7 +164,11 @@ def build_parser() -> argparse.ArgumentParser:
     setup = commands.add_parser("setup", help="prepare models, validate config, and configure Codex")
     setup.add_argument("--repository", type=Path, help="Git repository PatchMind will index")
     setup.add_argument("--no-pull", action="store_true", help="do not pull Ollama models")
-    setup.add_argument("--install-codex", action="store_true", help="add PatchMind to Codex MCP")
+    setup.add_argument(
+        "--install-codex",
+        action="store_true",
+        help="add the MCP server, skill, and automatic instructions to Codex",
+    )
     commands.add_parser("serve", help="run the PatchMind MCP server")
     return parser
 

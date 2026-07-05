@@ -63,10 +63,14 @@ async def patchmind_record_outcome(
     evidence: str,
     affected_files: list[str],
     tests: list[str] | None = None,
+    failure_reason: str | None = None,
+    dependency_versions: dict[str, str] | None = None,
+    summary: str | None = None,
 ) -> dict:
     """Record a coding attempt and its observed outcome in session memory."""
     return await get_service().record_outcome(
-        repository_path, session_id, task, approach, outcome, evidence, affected_files, tests
+        repository_path, session_id, task, approach, outcome, evidence, affected_files, tests,
+        failure_reason, dependency_versions, summary,
     )
 
 
